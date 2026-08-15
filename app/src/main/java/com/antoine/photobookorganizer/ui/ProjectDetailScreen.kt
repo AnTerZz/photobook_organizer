@@ -68,7 +68,7 @@ private enum class FilterOption(val label: String) {
     ALL("All"),
     DUPLICATES("Duplicates"),
     CANDIDATE("Candidates"),
-    SELECTED("Selected"),
+    REJECTED("Rejected"),
     NEEDS_EDIT("Needs Edit"),
     FINAL("Final")
 }
@@ -90,7 +90,7 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
         FilterOption.ALL -> photos
         FilterOption.DUPLICATES -> photos.filter { it.isDuplicateGroup != null }
         FilterOption.CANDIDATE -> photos.filter { it.status == PhotoStatus.CANDIDATE }
-        FilterOption.SELECTED -> photos.filter { it.status == PhotoStatus.SELECTED }
+        FilterOption.REJECTED -> photos.filter { it.status == PhotoStatus.REJECTED }
         FilterOption.NEEDS_EDIT -> photos.filter { it.status == PhotoStatus.NEEDS_EDIT }
         FilterOption.FINAL -> photos.filter { it.status == PhotoStatus.FINAL }
     }
@@ -105,8 +105,9 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
     if (showTriage) {
         TriageScreen(
             candidates = photos.filter { it.status == PhotoStatus.CANDIDATE },
-            onSelect = { photo -> viewModel.setStatus(project, photo, PhotoStatus.SELECTED) },
+            onMarkFinal = { photo -> viewModel.setStatus(project, photo, PhotoStatus.FINAL) },
             onSendToLightroom = { photo -> viewModel.setStatus(project, photo, PhotoStatus.NEEDS_EDIT) },
+            onReject = { photo -> viewModel.setStatus(project, photo, PhotoStatus.REJECTED) },
             onClose = { showTriage = false }
         )
         return
@@ -161,7 +162,7 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
                     FilterOption.ALL to photos.size,
                     FilterOption.DUPLICATES to photos.count { it.isDuplicateGroup != null },
                     FilterOption.CANDIDATE to photos.count { it.status == PhotoStatus.CANDIDATE },
-                    FilterOption.SELECTED to photos.count { it.status == PhotoStatus.SELECTED },
+                    FilterOption.REJECTED to photos.count { it.status == PhotoStatus.REJECTED },
                     FilterOption.NEEDS_EDIT to photos.count { it.status == PhotoStatus.NEEDS_EDIT },
                     FilterOption.FINAL to photos.count { it.status == PhotoStatus.FINAL }
                 )
@@ -285,21 +286,21 @@ private fun StatusBadge(text: String, color: Color) {
 
 private fun statusAbbrev(status: PhotoStatus): String = when (status) {
     PhotoStatus.CANDIDATE -> "CAND"
-    PhotoStatus.SELECTED -> "SEL"
+    PhotoStatus.REJECTED -> "REJ"
     PhotoStatus.NEEDS_EDIT -> "EDIT"
     PhotoStatus.FINAL -> "FINAL"
 }
 
 private fun statusActionLabel(status: PhotoStatus): String = when (status) {
     PhotoStatus.CANDIDATE -> "Move to Candidates"
-    PhotoStatus.SELECTED -> "Select for book"
+    PhotoStatus.REJECTED -> "Reject"
     PhotoStatus.NEEDS_EDIT -> "Send to Lightroom"
     PhotoStatus.FINAL -> "Mark Final"
 }
 
 private fun statusActionIcon(status: PhotoStatus): ImageVector = when (status) {
     PhotoStatus.CANDIDATE -> Icons.Filled.Undo
-    PhotoStatus.SELECTED -> Icons.Filled.Star
+    PhotoStatus.REJECTED -> Icons.Filled.Close
     PhotoStatus.NEEDS_EDIT -> Icons.Filled.Edit
     PhotoStatus.FINAL -> Icons.Filled.CheckCircle
 }
