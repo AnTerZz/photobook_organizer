@@ -6,14 +6,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -21,6 +24,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -39,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.antoine.photobookorganizer.data.Project
 import com.antoine.photobookorganizer.viewmodel.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +55,7 @@ fun ProjectListScreen(viewModel: MainViewModel, onOpenProject: (Long) -> Unit) {
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var pendingName by remember { mutableStateOf("") }
+    var projectToDelete by remember { mutableStateOf<Project?>(null) }
 
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null && pendingName.isNotBlank()) {
@@ -112,11 +118,25 @@ fun ProjectListScreen(viewModel: MainViewModel, onOpenProject: (Long) -> Unit) {
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
-                            Text(
-                                project.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    project.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = { projectToDelete = project }) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "Delete project",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                             Text(
                                 if (count == 1) "1 photo" else "$count photos",
                                 style = MaterialTheme.typography.bodySmall,
@@ -165,6 +185,23 @@ fun ProjectListScreen(viewModel: MainViewModel, onOpenProject: (Long) -> Unit) {
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    projectToDelete?.let { project ->
+        AlertDialog(
+            onDismissRequest = { projectToDelete = null },
+            title = { Text("Delete \"${project.name}\"?") },
+            text = { Text("This removes it from Photobook Organizer only - your photo files and folders on this phone are not touched.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteProject(project)
+                    projectToDelete = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { projectToDelete = null }) { Text("Cancel") }
             }
         )
     }
