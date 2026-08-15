@@ -76,7 +76,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteProject(project: Project) {
-        viewModelScope.launch { db.projectDao().delete(project) }
+        viewModelScope.launch {
+            db.photoDao().deleteAllForProject(project.id)
+            db.projectDao().delete(project)
+        }
     }
 
     fun photosFor(projectId: Long): Flow<List<Photo>> = db.photoDao().getForProject(projectId)
