@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -78,6 +80,7 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
     val project = projects.firstOrNull { it.id == projectId } ?: return
     val photos by viewModel.photosFor(projectId).collectAsState(initial = emptyList())
     val message by viewModel.statusMessage.collectAsState()
+    val isScanning by viewModel.isScanning.collectAsState()
 
     var filterOption by remember { mutableStateOf(FilterOption.ALL) }
     var selectedPhoto by remember { mutableStateOf<Photo?>(null) }
@@ -124,10 +127,20 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                FilledTonalButton(onClick = { viewModel.scanInbox(project) }) { Text("Scan Inbox") }
+                FilledTonalButton(onClick = { viewModel.scanInbox(project) }, enabled = !isScanning) {
+                    if (isScanning) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(if (isScanning) "Scanning..." else "Scan Inbox")
+                }
                 FilledTonalButton(onClick = { showTriage = true }) { Text("Triage") }
-                FilledTonalButton(onClick = { viewModel.scanEditedReturn(project) }) { Text("Scan Returns") }
-                FilledTonalButton(onClick = { viewModel.exportFinals(project) }) { Text("Export") }
+                FilledTonalButton(onClick = { viewModel.scanEditedReturn(project) }, enabled = !isScanning) { Text("Scan Returns") }
+                FilledTonalButton(onClick = { viewModel.exportFinals(project) }, enabled = !isScanning) { Text("Export") }
             }
 
             FilterDropdown(selected = filterOption, onSelect = { filterOption = it })
