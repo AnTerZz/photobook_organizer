@@ -209,7 +209,6 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
 }
 
 
-private fun FilterDropdown(selected: FilterOption, onSelect: (FilterOption) -> Unit) {
 @Composable
 private fun FilterDropdown(selected: FilterOption, onSelect: (FilterOption) -> Unit, counts: Map<FilterOption, Int>) {
     var expanded by remember { mutableStateOf(false) }
