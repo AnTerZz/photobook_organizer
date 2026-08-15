@@ -35,11 +35,14 @@ interface PhotoDao {
     @Query("DELETE FROM photos WHERE projectId = :projectId")
     suspend fun deleteAllForProject(projectId: Long)
 
-    @Query("SELECT COUNT(*) FROM photos WHERE projectId = :projectId AND status != 'CANDIDATE'")
-    suspend fun countSelectedOrLater(projectId: Long): Int
+    @Query("SELECT COUNT(*) FROM photos WHERE projectId = :projectId")
+    suspend fun countTotal(projectId: Long): Int
 
     @Query("SELECT COUNT(*) FROM photos WHERE projectId = :projectId AND status = 'FINAL'")
     suspend fun countFinal(projectId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM photos WHERE projectId = :projectId AND status = 'REJECTED'")
+    suspend fun countRejected(projectId: Long): Int
 
     @Query("SELECT projectId, COUNT(*) as count FROM photos GROUP BY projectId")
     fun getPhotoCountsPerProject(): Flow<List<ProjectPhotoCount>>
