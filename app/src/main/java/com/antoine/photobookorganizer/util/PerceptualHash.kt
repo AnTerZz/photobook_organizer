@@ -8,7 +8,6 @@ import androidx.core.graphics.scale
 
 object PerceptualHash {
 
-    /** Difference hash (dHash): downsizes to 9x8 grayscale, compares adjacent pixels row-wise. Returns a 64-bit hash. */
     fun compute(context: Context, uri: Uri): Long? {
         val bitmap = decodeDownscaled(context, uri, 9, 8) ?: return null
         var hash = 0L
@@ -36,13 +35,28 @@ object PerceptualHash {
 
     internal fun decodeDownscaled(context: Context, uri: Uri, w: Int, h: Int): Bitmap? {
         return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.contentResolver.openInputStream(uri)?.use { stream ->
-                val original = BitmapFactory.decodeStream(stream) ?: return null
-                val scaled = original.scale(w, h)
-                if (scaled !== original) original.recycle()
-                scaled
+                BitmapFactory.decodeStream(stream, null, bounds)
             }
-        } catch (e: Exception) {
+            val origWidth = bounds.outWidth
+            val origHeight = bounds.outHeight
+            if (origWidth <= 0 || origHeight <= 0) return null
+
+            var sampleSize = 1
+            while (origWidth / (sampleSize * 2) >= w && origHeight / (sampleSize * 2) >= h) {
+                sampleSize *= 2
+            }
+
+            val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val sampled = context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            } ?: return null
+
+            val scaled = sampled.scale(w, h)
+            if (scaled !== sampled) sampled.recycle()
+            scaled
+        } catch (t: Throwable) {
             null
         }
     }
