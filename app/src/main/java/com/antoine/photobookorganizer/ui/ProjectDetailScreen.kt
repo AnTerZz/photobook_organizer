@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,10 +17,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
@@ -37,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -66,30 +68,46 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(project.name) }) },
+        topBar = {
+            TopAppBar(title = { Text(project.name, fontWeight = FontWeight.Bold) })
+        },
         snackbarHost = {
-            message?.let { Snackbar(modifier = Modifier.padding(8.dp)) { Text(it) } }
+            message?.let { Snackbar(modifier = Modifier.padding(12.dp)) { Text(it) } }
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedButton(onClick = { viewModel.scanInbox(project) }) { Text("Scan Inbox") }
-                OutlinedButton(onClick = { viewModel.scanEditedReturn(project) }) { Text("Scan Returns") }
-                OutlinedButton(onClick = { viewModel.exportFinals(project) }) { Text("Export Finals") }
+                FilledTonalButton(onClick = { viewModel.scanInbox(project) }) { Text("Scan Inbox") }
+                FilledTonalButton(onClick = { viewModel.scanEditedReturn(project) }) { Text("Scan Returns") }
+                FilledTonalButton(onClick = { viewModel.exportFinals(project) }) { Text("Export") }
             }
 
             ScrollableFilterRow(selected = filter, onSelect = { filter = it })
 
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 100.dp),
-                contentPadding = PaddingValues(4.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(filtered, key = { it.id }) { photo ->
-                    PhotoThumbnail(photo = photo, onClick = { selectedPhoto = photo })
+            Spacer(modifier = Modifier.height(4.dp))
+
+            if (filtered.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "No photos here yet",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 108.dp),
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(filtered, key = { it.id }) { photo ->
+                        PhotoThumbnail(photo = photo, onClick = { selectedPhoto = photo })
+                    }
                 }
             }
         }
@@ -110,8 +128,8 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
 @Composable
 private fun ScrollableFilterRow(selected: PhotoStatus?, onSelect: (PhotoStatus?) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("All") })
         PhotoStatus.entries.forEach { status ->
@@ -128,9 +146,8 @@ private fun ScrollableFilterRow(selected: PhotoStatus?, onSelect: (PhotoStatus?)
 private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .padding(2.dp)
             .aspectRatio(1f)
-            .clip(MaterialTheme.shapes.small)
+            .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
     ) {
         AsyncImage(
@@ -139,23 +156,25 @@ private fun PhotoThumbnail(photo: Photo, onClick: () -> Unit) {
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
-        Row(modifier = Modifier.align(Alignment.TopStart).padding(2.dp)) {
+        Row(modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) {
             if (photo.isDuplicateGroup != null) {
-                StatusBadge(text = "DUP", color = Color(0xFFFFA000))
+                StatusBadge(text = "DUP", color = Color(0xFFC1663D))
             }
             val blur = photo.blurScore
             if (blur != null && blur < BlurDetector.BLUR_WARNING_THRESHOLD) {
-                StatusBadge(text = "BLUR", color = Color(0xFFD32F2F))
+                StatusBadge(text = "BLUR", color = Color(0xFFA13D2B))
             }
         }
         Text(
             text = statusAbbrev(photo.status),
             color = Color.White,
             style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .background(Color.Black.copy(alpha = 0.6f))
-                .padding(horizontal = 4.dp, vertical = 1.dp)
+                .padding(6.dp)
+                .background(Color.Black.copy(alpha = 0.55f), MaterialTheme.shapes.extraSmall)
+                .padding(horizontal = 6.dp, vertical = 3.dp)
         )
     }
 }
@@ -166,9 +185,11 @@ private fun StatusBadge(text: String, color: Color) {
         text = text,
         color = Color.White,
         style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
         modifier = Modifier
+            .padding(end = 4.dp)
             .background(color, MaterialTheme.shapes.extraSmall)
-            .padding(horizontal = 3.dp, vertical = 1.dp)
+            .padding(horizontal = 5.dp, vertical = 2.dp)
     )
 }
 
@@ -184,19 +205,32 @@ private fun statusAbbrev(status: PhotoStatus): String = when (status) {
 @Composable
 private fun PhotoActionSheet(photo: Photo, onDismiss: () -> Unit, onSetStatus: (PhotoStatus) -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             AsyncImage(
                 model = photo.uri,
                 contentDescription = photo.fileName,
-                modifier = Modifier.fillMaxWidth().height(220.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .clip(MaterialTheme.shapes.medium),
                 contentScale = ContentScale.Fit
             )
-            Text(photo.fileName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+            Text(
+                photo.fileName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+            )
             PhotoStatus.entries.forEach { status ->
                 TextButton(onClick = { onSetStatus(status) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Mark as ${status.name.replace('_', ' ')}", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start)
+                    Text(
+                        "Mark as ${status.name.replace('_', ' ')}",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Start
+                    )
                 }
             }
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
