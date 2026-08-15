@@ -35,6 +35,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage
 
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning
+
     init {
         viewModelScope.launch {
             projects.collect { list -> list.forEach { refreshCompletion(it.id) } }
@@ -64,24 +67,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun scanInbox(project: Project) {
         viewModelScope.launch {
-            val added = scanner.scanInbox(project)
-            _statusMessage.value = if (added > 0) "Added $added photo(s) from Inbox" else "No new photos found in Inbox"
-            refreshCompletion(project.id)
+            _isScanning.value = true
+            try {
+                val added = scanner.scanInbox(project)
+                _statusMessage.value = if (added > 0) "Added $added photo(s) from Inbox" else "No new photos found in Inbox"
+                refreshCompletion(project.id)
+            } finally {
+                _isScanning.value = false
+            }
         }
     }
 
     fun scanEditedReturn(project: Project) {
         viewModelScope.launch {
-            val matched = scanner.scanEditedReturn(project)
-            _statusMessage.value = if (matched > 0) "Matched $matched photo(s) to Final" else "No matching edited photos found"
-            refreshCompletion(project.id)
+            _isScanning.value = true
+            try {
+                val matched = scanner.scanEditedReturn(project)
+                _statusMessage.value = if (matched > 0) "Matched $matched photo(s) to Final" else "No matching edited photos found"
+                refreshCompletion(project.id)
+            } finally {
+                _isScanning.value = false
+            }
         }
     }
 
     fun exportFinals(project: Project) {
         viewModelScope.launch {
-            val count = scanner.exportFinals(project)
-            _statusMessage.value = "Exported $count final photo(s) to the Export folder"
+            _isScanning.value = true
+            try {
+                val count = scanner.exportFinals(project)
+                _statusMessage.value = "Exported $count final photo(s) to the Export folder"
+            } finally {
+                _isScanning.value = false
+            }
         }
     }
 
