@@ -11,11 +11,30 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80
+private val LightColors = lightColorScheme(
+    primary = Terracotta40,
+    onPrimary = WarmPaper,
+    secondary = Sage40,
+    onSecondary = WarmPaper,
+    background = WarmPaper,
+    onBackground = WarmInk,
+    surface = WarmSurface,
+    onSurface = WarmInk,
+    surfaceVariant = WarmSurface,
+    onSurfaceVariant = WarmInk
 )
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40, secondary = PurpleGrey40, tertiary = Pink40
+
+private val DarkColors = darkColorScheme(
+    primary = Terracotta80,
+    onPrimary = Darkroom,
+    secondary = Sage80,
+    onSecondary = Darkroom,
+    background = Darkroom,
+    onBackground = DarkroomInk,
+    surface = DarkroomSurface,
+    onSurface = DarkroomInk,
+    surfaceVariant = DarkroomSurface,
+    onSurfaceVariant = DarkroomInk
 )
 
 @Composable
@@ -23,12 +42,12 @@ fun PhotobookOrganizerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = if (darkTheme) DarkColors else LightColors
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
+            window.statusBarColor = colorScheme.background.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
