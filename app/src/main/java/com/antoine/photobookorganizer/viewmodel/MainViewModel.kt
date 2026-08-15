@@ -73,7 +73,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun scanEditedReturn(project: Project) {
         viewModelScope.launch {
             val matched = scanner.scanEditedReturn(project)
-            _statusMessage.value = if (matched > 0) "Matched $matched edited photo(s)" else "No matching edited photos found"
+            _statusMessage.value = if (matched > 0) "Matched $matched photo(s) to Final" else "No matching edited photos found"
             refreshCompletion(project.id)
         }
     }
@@ -93,6 +93,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 db.photoDao().update(photo.copy(status = status))
             }
             refreshCompletion(project.id)
+        }
+    }
+
+    fun deletePhoto(photo: Photo) {
+        viewModelScope.launch {
+            scanner.deletePhoto(photo)
+            refreshCompletion(photo.projectId)
         }
     }
 
