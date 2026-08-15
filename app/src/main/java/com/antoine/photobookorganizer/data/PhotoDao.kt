@@ -7,6 +7,8 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+data class ProjectPhotoCount(val projectId: Long, val count: Int)
+
 @Dao
 interface PhotoDao {
     @Query("SELECT * FROM photos WHERE projectId = :projectId ORDER BY dateTaken ASC")
@@ -35,4 +37,7 @@ interface PhotoDao {
 
     @Query("SELECT COUNT(*) FROM photos WHERE projectId = :projectId AND status = 'FINAL'")
     suspend fun countFinal(projectId: Long): Int
+
+    @Query("SELECT projectId, COUNT(*) as count FROM photos GROUP BY projectId")
+    fun getPhotoCountsPerProject(): Flow<List<ProjectPhotoCount>>
 }
