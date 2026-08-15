@@ -5,8 +5,9 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,21 +21,17 @@ import com.antoine.photobookorganizer.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: MainViewModel by lazy { MainViewModel(application) }
-
-    // Held outside Compose so onNewIntent (called when the app is already running) can update it -
-    // this is what was missing: sharing worked only on a cold start, not when the app was already open.
-    private val pendingShareState = mutableStateOf<List<Uri>>(emptyList())
+    private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        pendingShareState.value = extractSharedImageUris(intent)
+        handleShareIntent(intent)
 
         setContent {
             PhotobookOrganizerTheme {
                 val navController = rememberNavController()
-                val pendingShare by pendingShareState
+                val pendingShare by viewModel.pendingShare.collectAsState()
 
                 NavHost(navController = navController, startDestination = "projects") {
                     composable("projects") {
@@ -56,7 +53,7 @@ class MainActivity : ComponentActivity() {
                     ShareTargetScreen(
                         viewModel = viewModel,
                         sharedUris = pendingShare,
-                        onDone = { pendingShareState.value = emptyList() }
+                        onDone = { viewModel.clearPendingShare() }
                     )
                 }
             }
@@ -65,11 +62,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
+        handleShareIntent(intent)
+    }
+
+    private fun handleShareIntent(intent: Intent?) {
         val uris = extractSharedImageUris(intent)
         if (uris.isNotEmpty()) {
-            pendingShareState.value = uris
+            viewModel.setPendingShare(uris)
         }
+        setIntent(Intent())
     }
 
     @Suppress("DEPRECATION")
