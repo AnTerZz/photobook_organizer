@@ -7,5 +7,9 @@ class Converters {
     fun fromStatus(status: PhotoStatus): String = status.name
 
     @TypeConverter
-    fun toStatus(value: String): PhotoStatus = PhotoStatus.valueOf(value)
+    fun toStatus(value: String): PhotoStatus = try {
+        PhotoStatus.valueOf(value)
+    } catch (e: IllegalArgumentException) {
+        PhotoStatus.FINAL
+    }
 }
