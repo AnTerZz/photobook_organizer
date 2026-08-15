@@ -12,12 +12,14 @@ import com.antoine.photobookorganizer.data.PhotoStatus
 import com.antoine.photobookorganizer.data.Project
 import com.antoine.photobookorganizer.scan.ProjectScanner
 import com.antoine.photobookorganizer.storage.StorageManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -47,7 +49,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
             val project = Project(name = name, rootFolderUri = treeUri.toString())
             val id = db.projectDao().insert(project)
-            StorageManager.ensureProjectFolders(getApplication(), treeUri.toString())
+            withContext(Dispatchers.IO) {
+                StorageManager.ensureProjectFolders(getApplication(), treeUri.toString())
+            }
             refreshCompletion(id)
         }
     }
@@ -94,12 +98,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun importSharedPhotos(project: Project, uris: List<Uri>) {
         viewModelScope.launch {
-            val folders = StorageManager.ensureProjectFolders(getApplication(), project.rootFolderUri)
-            val inbox = folders[StorageManager.FOLDER_INBOX] ?: return@launch
-            for (uri in uris) {
-                val name = queryDisplayName(uri) ?: "shared_${System.currentTimeMillis()}.jpg"
-                val mime = getApplication<Application>().contentResolver.getType(uri) ?: "image/*"
-                StorageManager.copyInto(getApplication(), uri, inbox, name, mime)
+            withContext(Dispatchers.IO) {
+                val folders = StorageManager.ensureProjectFolders(getApplication(), project.rootFolderUri)
+                val inbox = folders[StorageManager.FOLDER_INBOX] ?: return@withContext
+                for (uri in uris) {
+                    val name = queryDisplayName(uri) ?: "shared_${System.currentTimeMillis()}.jpg"
+                    val mime = getApplication<Application>().contentResolver.getType(uri) ?: "image/*"
+                    StorageManager.copyInto(getApplication(), uri, inbox, name, mime)
+                }
             }
             scanInbox(project)
         }
