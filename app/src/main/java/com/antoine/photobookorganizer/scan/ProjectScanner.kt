@@ -111,7 +111,7 @@ class ProjectScanner(private val context: Context) {
                     hit.copy(
                         uri = file.uri.toString(),
                         fileName = name,
-                        status = PhotoStatus.EDITED
+                        status = PhotoStatus.FINAL
                     )
                 )
                 matched++
@@ -134,10 +134,15 @@ class ProjectScanner(private val context: Context) {
         count
     }
 
+    suspend fun deletePhoto(photo: Photo) = withContext(Dispatchers.IO) {
+        StorageManager.deleteFile(context, photo.uri)
+        db.photoDao().delete(photo)
+    }
+
     suspend fun completionPercent(projectId: Long): Int {
-        val placedOrLater = db.photoDao().countPlacedOrLater(projectId)
-        if (placedOrLater == 0) return 0
+        val selectedOrLater = db.photoDao().countSelectedOrLater(projectId)
+        if (selectedOrLater == 0) return 0
         val final = db.photoDao().countFinal(projectId)
-        return ((final.toDouble() / placedOrLater) * 100).toInt()
+        return ((final.toDouble() / selectedOrLater) * 100).toInt()
     }
 }
