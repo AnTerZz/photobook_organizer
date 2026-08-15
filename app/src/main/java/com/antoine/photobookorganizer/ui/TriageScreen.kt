@@ -2,6 +2,7 @@ package com.antoine.photobookorganizer.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -104,15 +105,19 @@ private fun SwipeCard(
     val horizontalThreshold = 300f
     val verticalThreshold = 220f
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Box(
             modifier = Modifier
                 .padding(24.dp)
                 .fillMaxWidth()
-                .aspectRatio(0.8f)
+                .weight(1f)
                 .offset { IntOffset(offsetX.value.roundToInt(), offsetY.value.roundToInt()) }
                 .graphicsLayer { rotationZ = (offsetX.value / 40f).coerceIn(-15f, 15f) }
                 .clip(MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .pointerInput(key) {
                     detectDragGestures(
                         onDrag = { change, dragAmount ->
@@ -152,7 +157,7 @@ private fun SwipeCard(
             AsyncImage(
                 model = photo.uri,
                 contentDescription = photo.fileName,
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
             )
         }
