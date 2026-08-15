@@ -32,6 +32,9 @@ interface PhotoDao {
     @Delete
     suspend fun delete(photo: Photo)
 
+    @Query("DELETE FROM photos WHERE projectId = :projectId")
+    suspend fun deleteAllForProject(projectId: Long)
+
     @Query("SELECT COUNT(*) FROM photos WHERE projectId = :projectId AND status != 'CANDIDATE'")
     suspend fun countSelectedOrLater(projectId: Long): Int
 
