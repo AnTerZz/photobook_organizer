@@ -106,6 +106,7 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
         TriageScreen(
             candidates = photos.filter { it.status == PhotoStatus.CANDIDATE },
             onSelect = { photo -> viewModel.setStatus(project, photo, PhotoStatus.SELECTED) },
+            onSendToLightroom = { photo -> viewModel.setStatus(project, photo, PhotoStatus.NEEDS_EDIT) },
             onClose = { showTriage = false }
         )
         return
