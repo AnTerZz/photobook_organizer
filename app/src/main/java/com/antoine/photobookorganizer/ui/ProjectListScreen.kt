@@ -46,6 +46,7 @@ import com.antoine.photobookorganizer.viewmodel.MainViewModel
 fun ProjectListScreen(viewModel: MainViewModel, onOpenProject: (Long) -> Unit) {
     val projects by viewModel.projects.collectAsState()
     val completion by viewModel.completion.collectAsState()
+    val photoCounts by viewModel.photoCounts.collectAsState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var pendingName by remember { mutableStateOf("") }
@@ -103,6 +104,7 @@ fun ProjectListScreen(viewModel: MainViewModel, onOpenProject: (Long) -> Unit) {
             ) {
                 items(projects, key = { it.id }) { project ->
                     val pct = completion[project.id] ?: 0
+                    val count = photoCounts[project.id] ?: 0
                     Card(
                         onClick = { onOpenProject(project.id) },
                         modifier = Modifier.fillMaxWidth(),
@@ -114,6 +116,12 @@ fun ProjectListScreen(viewModel: MainViewModel, onOpenProject: (Long) -> Unit) {
                                 project.name,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                if (count == 1) "1 photo" else "$count photos",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp)
                             )
                             LinearProgressIndicator(
                                 progress = { pct / 100f },
