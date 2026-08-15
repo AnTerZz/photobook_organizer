@@ -2,6 +2,7 @@ package com.antoine.photobookorganizer.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,12 +14,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -37,15 +50,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.antoine.photobookorganizer.data.Photo
 import com.antoine.photobookorganizer.data.PhotoStatus
 import com.antoine.photobookorganizer.util.BlurDetector
 import com.antoine.photobookorganizer.viewmodel.MainViewModel
+
+private enum class FilterOption(val label: String) {
+    ALL("All"),
+    DUPLICATES("Duplicates"),
+    CANDIDATE("Candidates"),
+    SELECTED("Selected"),
+    NEEDS_EDIT("Needs Edit"),
+    FINAL("Final")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,16 +79,33 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
     val photos by viewModel.photosFor(projectId).collectAsState(initial = emptyList())
     val message by viewModel.statusMessage.collectAsState()
 
-    var filter by remember { mutableStateOf<PhotoStatus?>(null) }
+    var filterOption by remember { mutableStateOf(FilterOption.ALL) }
     var selectedPhoto by remember { mutableStateOf<Photo?>(null) }
+    var showTriage by remember { mutableStateOf(false) }
 
-    val filtered = if (filter == null) photos else photos.filter { it.status == filter }
+    val filtered = when (filterOption) {
+        FilterOption.ALL -> photos
+        FilterOption.DUPLICATES -> photos.filter { it.isDuplicateGroup != null }
+        FilterOption.CANDIDATE -> photos.filter { it.status == PhotoStatus.CANDIDATE }
+        FilterOption.SELECTED -> photos.filter { it.status == PhotoStatus.SELECTED }
+        FilterOption.NEEDS_EDIT -> photos.filter { it.status == PhotoStatus.NEEDS_EDIT }
+        FilterOption.FINAL -> photos.filter { it.status == PhotoStatus.FINAL }
+    }
 
     LaunchedEffect(message) {
         if (message != null) {
             kotlinx.coroutines.delay(2500)
             viewModel.clearMessage()
         }
+    }
+
+    if (showTriage) {
+        TriageScreen(
+            candidates = photos.filter { it.status == PhotoStatus.CANDIDATE },
+            onSelect = { photo -> viewModel.setStatus(project, photo, PhotoStatus.SELECTED) },
+            onClose = { showTriage = false }
+        )
+        return
     }
 
     Scaffold(
@@ -77,15 +118,19 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 FilledTonalButton(onClick = { viewModel.scanInbox(project) }) { Text("Scan Inbox") }
+                FilledTonalButton(onClick = { showTriage = true }) { Text("Triage") }
                 FilledTonalButton(onClick = { viewModel.scanEditedReturn(project) }) { Text("Scan Returns") }
                 FilledTonalButton(onClick = { viewModel.exportFinals(project) }) { Text("Export") }
             }
 
-            ScrollableFilterRow(selected = filter, onSelect = { filter = it })
+            FilterDropdown(selected = filterOption, onSelect = { filterOption = it })
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -120,24 +165,33 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
             onSetStatus = { status ->
                 viewModel.setStatus(project, photo, status)
                 selectedPhoto = null
+            },
+            onDeleteDuplicate = {
+                viewModel.deletePhoto(photo)
+                selectedPhoto = null
             }
         )
     }
 }
 
 @Composable
-private fun ScrollableFilterRow(selected: PhotoStatus?, onSelect: (PhotoStatus?) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("All") })
-        PhotoStatus.entries.forEach { status ->
-            FilterChip(
-                selected = selected == status,
-                onClick = { onSelect(status) },
-                label = { Text(status.name.replace('_', ' ')) }
-            )
+private fun FilterDropdown(selected: FilterOption, onSelect: (FilterOption) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+        FilledTonalButton(onClick = { expanded = true }) {
+            Text(selected.label)
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.padding(start = 6.dp))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            FilterOption.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }
@@ -195,15 +249,36 @@ private fun StatusBadge(text: String, color: Color) {
 
 private fun statusAbbrev(status: PhotoStatus): String = when (status) {
     PhotoStatus.CANDIDATE -> "CAND"
-    PhotoStatus.PLACED -> "PLACED"
+    PhotoStatus.SELECTED -> "SEL"
     PhotoStatus.NEEDS_EDIT -> "EDIT"
-    PhotoStatus.EDITED -> "EDITED"
     PhotoStatus.FINAL -> "FINAL"
+}
+
+private fun statusActionLabel(status: PhotoStatus): String = when (status) {
+    PhotoStatus.CANDIDATE -> "Move to Candidates"
+    PhotoStatus.SELECTED -> "Select for book"
+    PhotoStatus.NEEDS_EDIT -> "Send to Lightroom"
+    PhotoStatus.FINAL -> "Mark Final"
+}
+
+private fun statusActionIcon(status: PhotoStatus): ImageVector = when (status) {
+    PhotoStatus.CANDIDATE -> Icons.Filled.Undo
+    PhotoStatus.SELECTED -> Icons.Filled.Star
+    PhotoStatus.NEEDS_EDIT -> Icons.Filled.Edit
+    PhotoStatus.FINAL -> Icons.Filled.CheckCircle
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PhotoActionSheet(photo: Photo, onDismiss: () -> Unit, onSetStatus: (PhotoStatus) -> Unit) {
+private fun PhotoActionSheet(
+    photo: Photo,
+    onDismiss: () -> Unit,
+    onSetStatus: (PhotoStatus) -> Unit,
+    onDeleteDuplicate: () -> Unit
+) {
+    var showFullScreen by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(20.dp)) {
             AsyncImage(
@@ -212,25 +287,78 @@ private fun PhotoActionSheet(photo: Photo, onDismiss: () -> Unit, onSetStatus: (
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(240.dp)
-                    .clip(MaterialTheme.shapes.medium),
+                    .clip(MaterialTheme.shapes.medium)
+                    .clickable { showFullScreen = true },
                 contentScale = ContentScale.Fit
             )
             Text(
                 photo.fileName,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
             )
-            PhotoStatus.entries.forEach { status ->
-                TextButton(onClick = { onSetStatus(status) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Mark as ${status.name.replace('_', ' ')}",
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Start
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PhotoStatus.entries.filter { it != photo.status }.forEach { status ->
+                    FilledTonalButton(onClick = { onSetStatus(status) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(statusActionIcon(status), contentDescription = null)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(statusActionLabel(status))
+                    }
+                }
+            }
+            if (photo.isDuplicateGroup != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                TextButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Delete this duplicate", color = MaterialTheme.colorScheme.error)
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
+        }
+    }
+
+    if (showFullScreen) {
+        FullScreenPhotoViewer(photo = photo, onDismiss = { showFullScreen = false })
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete this photo?") },
+            text = { Text("This removes the file from your device and can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDeleteDuplicate()
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun FullScreenPhotoViewer(photo: Photo, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = photo.uri,
+                contentDescription = photo.fileName,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }
