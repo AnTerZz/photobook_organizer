@@ -113,7 +113,17 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(project.name, fontWeight = FontWeight.Bold) })
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(project.name, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (photos.size == 1) "1 photo" else "${photos.size} photos",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            )
         },
         snackbarHost = {
             message?.let { Snackbar(modifier = Modifier.padding(12.dp)) { Text(it) } }
@@ -143,7 +153,18 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
                 FilledTonalButton(onClick = { viewModel.exportFinals(project) }, enabled = !isScanning) { Text("Export") }
             }
 
-            FilterDropdown(selected = filterOption, onSelect = { filterOption = it })
+            FilterDropdown(
+                selected = filterOption,
+                onSelect = { filterOption = it },
+                counts = mapOf(
+                    FilterOption.ALL to photos.size,
+                    FilterOption.DUPLICATES to photos.count { it.isDuplicateGroup != null },
+                    FilterOption.CANDIDATE to photos.count { it.status == PhotoStatus.CANDIDATE },
+                    FilterOption.SELECTED to photos.count { it.status == PhotoStatus.SELECTED },
+                    FilterOption.NEEDS_EDIT to photos.count { it.status == PhotoStatus.NEEDS_EDIT },
+                    FilterOption.FINAL to photos.count { it.status == PhotoStatus.FINAL }
+                )
+            )
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -187,18 +208,20 @@ fun ProjectDetailScreen(viewModel: MainViewModel, projectId: Long) {
     }
 }
 
-@Composable
+
 private fun FilterDropdown(selected: FilterOption, onSelect: (FilterOption) -> Unit) {
+@Composable
+private fun FilterDropdown(selected: FilterOption, onSelect: (FilterOption) -> Unit, counts: Map<FilterOption, Int>) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.padding(horizontal = 16.dp)) {
         FilledTonalButton(onClick = { expanded = true }) {
-            Text(selected.label)
+            Text("${selected.label} (${counts[selected] ?: 0})")
             Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.padding(start = 6.dp))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             FilterOption.entries.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.label) },
+                    text = { Text("${option.label} (${counts[option] ?: 0})") },
                     onClick = {
                         onSelect(option)
                         expanded = false
