@@ -176,9 +176,10 @@ class ProjectScanner(private val context: Context) {
     }
 
     suspend fun completionPercent(projectId: Long): Int {
-        val selectedOrLater = db.photoDao().countSelectedOrLater(projectId)
-        if (selectedOrLater == 0) return 0
+        val total = db.photoDao().countTotal(projectId)
+        if (total == 0) return 0
         val final = db.photoDao().countFinal(projectId)
-        return ((final.toDouble() / selectedOrLater) * 100).toInt()
+        val rejected = db.photoDao().countRejected(projectId)
+        return (((final + rejected).toDouble() / total) * 100).toInt()
     }
 }
