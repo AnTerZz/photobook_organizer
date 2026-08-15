@@ -18,7 +18,6 @@ object StorageManager {
         return DocumentFile.fromTreeUri(context, uri)
     }
 
-    /** Creates the standard subfolder structure under the chosen root tree, if missing. */
     fun ensureProjectFolders(context: Context, treeUriString: String): Map<String, DocumentFile> {
         val root = rootDocument(context, treeUriString)
             ?: error("Cannot open project folder - permission may have been revoked.")
@@ -38,7 +37,6 @@ object StorageManager {
         return root.findFile(name)
     }
 
-    /** Copies bytes verbatim from a source content Uri into a destination folder, preserving quality (no re-encoding). */
     fun copyInto(context: Context, sourceUri: Uri, destFolder: DocumentFile, displayName: String, mimeType: String): DocumentFile? {
         destFolder.findFile(displayName)?.let { return it }
         val newFile = destFolder.createFile(mimeType, displayName) ?: return null
@@ -48,6 +46,14 @@ object StorageManager {
             }
         }
         return newFile
+    }
+
+    fun deleteFile(context: Context, uriString: String): Boolean {
+        return try {
+            DocumentFile.fromSingleUri(context, Uri.parse(uriString))?.delete() ?: false
+        } catch (t: Throwable) {
+            false
+        }
     }
 
     fun baseName(fileName: String): String {
