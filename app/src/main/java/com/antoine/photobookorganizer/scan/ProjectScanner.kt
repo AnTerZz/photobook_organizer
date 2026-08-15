@@ -10,16 +10,17 @@ import com.antoine.photobookorganizer.storage.StorageManager
 import com.antoine.photobookorganizer.util.BlurDetector
 import com.antoine.photobookorganizer.util.ExifUtil
 import com.antoine.photobookorganizer.util.PerceptualHash
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class ProjectScanner(private val context: Context) {
 
     private val db = AppDatabase.get(context)
     private val imageExtensions = setOf("jpg", "jpeg", "png", "heic", "heif", "dng")
 
-    /** Scans the project's Inbox folder for files not yet tracked, adds them as CANDIDATE photos. */
-    suspend fun scanInbox(project: Project): Int {
+    suspend fun scanInbox(project: Project): Int = withContext(Dispatchers.IO) {
         val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
-        val inbox = folders[StorageManager.FOLDER_INBOX] ?: return 0
+        val inbox = folders[StorageManager.FOLDER_INBOX] ?: return@withContext 0
         val known = db.photoDao().getFileNamesForProject(project.id).toSet()
 
         var added = 0
@@ -54,10 +55,9 @@ class ProjectScanner(private val context: Context) {
             db.photoDao().insertAll(newPhotos)
             flagDuplicates(project.id)
         }
-        return added
+        added
     }
 
-    /** Groups near-duplicate photos (small perceptual-hash distance) within a project. */
     private suspend fun flagDuplicates(projectId: Long, threshold: Int = 6) {
         val photos = db.photoDao().getForProjectOnce(projectId).filter { it.perceptualHash != null }
         var nextGroupId = (photos.mapNotNull { it.isDuplicateGroup }.maxOrNull() ?: 0L) + 1
@@ -85,22 +85,20 @@ class ProjectScanner(private val context: Context) {
         }
     }
 
-    /** Copies a photo's current file into ToLightroom/, marks it NEEDS_EDIT. */
-    suspend fun sendToLightroom(project: Project, photo: Photo) {
+    suspend fun sendToLightroom(project: Project, photo: Photo) = withContext(Dispatchers.IO) {
         val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
-        val dest = folders[StorageManager.FOLDER_TO_LIGHTROOM] ?: return
+        val dest = folders[StorageManager.FOLDER_TO_LIGHTROOM] ?: return@withContext
         val srcUri = Uri.parse(photo.uri)
         val mime = context.contentResolver.getType(srcUri) ?: "image/*"
         StorageManager.copyInto(context, srcUri, dest, photo.fileName, mime)
         db.photoDao().update(photo.copy(status = PhotoStatus.NEEDS_EDIT))
     }
 
-    /** Scans EditedReturn/ for files matching NEEDS_EDIT photos by base filename; promotes matches to EDITED. */
-    suspend fun scanEditedReturn(project: Project): Int {
+    suspend fun scanEditedReturn(project: Project): Int = withContext(Dispatchers.IO) {
         val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
-        val returnFolder = folders[StorageManager.FOLDER_EDITED_RETURN] ?: return 0
+        val returnFolder = folders[StorageManager.FOLDER_EDITED_RETURN] ?: return@withContext 0
         val pending = db.photoDao().getForProjectOnce(project.id).filter { it.status == PhotoStatus.NEEDS_EDIT }
-        if (pending.isEmpty()) return 0
+        if (pending.isEmpty()) return@withContext 0
 
         var matched = 0
         for (file in returnFolder.listFiles()) {
@@ -119,13 +117,12 @@ class ProjectScanner(private val context: Context) {
                 matched++
             }
         }
-        return matched
+        matched
     }
 
-    /** Copies every FINAL photo's current file into Export/, ready for upload. */
-    suspend fun exportFinals(project: Project): Int {
+    suspend fun exportFinals(project: Project): Int = withContext(Dispatchers.IO) {
         val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
-        val exportFolder = folders[StorageManager.FOLDER_EXPORT] ?: return 0
+        val exportFolder = folders[StorageManager.FOLDER_EXPORT] ?: return@withContext 0
         val finals = db.photoDao().getForProjectOnce(project.id).filter { it.status == PhotoStatus.FINAL }
         var count = 0
         for (photo in finals) {
@@ -134,10 +131,9 @@ class ProjectScanner(private val context: Context) {
             val result = StorageManager.copyInto(context, srcUri, exportFolder, photo.fileName, mime)
             if (result != null) count++
         }
-        return count
+        count
     }
 
-    /** Percent of placed-or-later photos that have reached FINAL. */
     suspend fun completionPercent(projectId: Long): Int {
         val placedOrLater = db.photoDao().countPlacedOrLater(projectId)
         if (placedOrLater == 0) return 0
