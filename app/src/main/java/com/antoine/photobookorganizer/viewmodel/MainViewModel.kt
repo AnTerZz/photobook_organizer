@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -28,6 +29,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val projects: StateFlow<List<Project>> = db.projectDao().getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val photoCounts: StateFlow<Map<Long, Int>> = db.photoDao().getPhotoCountsPerProject()
+        .map { list -> list.associate { it.projectId to it.count } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())    
 
     private val _completion = MutableStateFlow<Map<Long, Int>>(emptyMap())
     val completion: StateFlow<Map<Long, Int>> = _completion
