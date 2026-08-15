@@ -11,51 +11,73 @@ import com.antoine.photobookorganizer.util.BlurDetector
 import com.antoine.photobookorganizer.util.ExifUtil
 import com.antoine.photobookorganizer.util.PerceptualHash
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class ProjectScanner(private val context: Context) {
 
     private val db = AppDatabase.get(context)
     private val imageExtensions = setOf("jpg", "jpeg", "png", "heic", "heif", "dng")
+    private val scanMutex = Mutex()
 
     suspend fun scanInbox(project: Project): Int = withContext(Dispatchers.IO) {
-        val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
-        val inbox = folders[StorageManager.FOLDER_INBOX] ?: return@withContext 0
-        val known = db.photoDao().getFileNamesForProject(project.id).toSet()
+        scanMutex.withLock {
+            dedupeExactFileReferences(project.id)
 
-        var added = 0
-        val newPhotos = mutableListOf<Photo>()
-        for (file in inbox.listFiles()) {
-            if (!file.isFile) continue
-            val name = file.name ?: continue
-            if (name in known) continue
-            val ext = name.substringAfterLast('.', "").lowercase()
-            if (ext !in imageExtensions) continue
+            val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
+            val inbox = folders[StorageManager.FOLDER_INBOX] ?: return@withLock 0
+            val known = db.photoDao().getFileNamesForProject(project.id).toSet()
 
-            val dateTaken = ExifUtil.readDateTaken(context, file.uri)
-                ?: file.lastModified().takeIf { it > 0 }
-                ?: System.currentTimeMillis()
-            val hash = PerceptualHash.compute(context, file.uri)
-            val blur = BlurDetector.computeBlurScore(context, file.uri)
+            var added = 0
+            val newPhotos = mutableListOf<Photo>()
+            for (file in inbox.listFiles()) {
+                if (!file.isFile) continue
+                val name = file.name ?: continue
+                if (name in known) continue
+                val ext = name.substringAfterLast('.', "").lowercase()
+                if (ext !in imageExtensions) continue
 
-            newPhotos.add(
-                Photo(
-                    projectId = project.id,
-                    uri = file.uri.toString(),
-                    fileName = name,
-                    dateTaken = dateTaken,
-                    status = PhotoStatus.CANDIDATE,
-                    perceptualHash = hash,
-                    blurScore = blur
+                val dateTaken = ExifUtil.readDateTaken(context, file.uri)
+                    ?: file.lastModified().takeIf { it > 0 }
+                    ?: System.currentTimeMillis()
+                val hash = PerceptualHash.compute(context, file.uri)
+                val blur = BlurDetector.computeBlurScore(context, file.uri)
+
+                newPhotos.add(
+                    Photo(
+                        projectId = project.id,
+                        uri = file.uri.toString(),
+                        fileName = name,
+                        dateTaken = dateTaken,
+                        status = PhotoStatus.CANDIDATE,
+                        perceptualHash = hash,
+                        blurScore = blur
+                    )
                 )
-            )
-            added++
+                added++
+            }
+            if (newPhotos.isNotEmpty()) {
+                db.photoDao().insertAll(newPhotos)
+                flagDuplicates(project.id)
+            }
+            added
         }
-        if (newPhotos.isNotEmpty()) {
-            db.photoDao().insertAll(newPhotos)
-            flagDuplicates(project.id)
+    }
+
+    private suspend fun dedupeExactFileReferences(projectId: Long) {
+        val photos = db.photoDao().getForProjectOnce(projectId)
+        val byUri = photos.groupBy { it.uri }
+        for (group in byUri.values) {
+            if (group.size > 1) {
+                val keepId = group.minOf { it.id }
+                for (p in group) {
+                    if (p.id != keepId) {
+                        db.photoDao().delete(p)
+                    }
+                }
+            }
         }
-        added
     }
 
     private suspend fun flagDuplicates(projectId: Long, threshold: Int = 6) {
@@ -86,52 +108,58 @@ class ProjectScanner(private val context: Context) {
     }
 
     suspend fun sendToLightroom(project: Project, photo: Photo) = withContext(Dispatchers.IO) {
-        val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
-        val dest = folders[StorageManager.FOLDER_TO_LIGHTROOM] ?: return@withContext
-        val srcUri = Uri.parse(photo.uri)
-        val mime = context.contentResolver.getType(srcUri) ?: "image/*"
-        StorageManager.copyInto(context, srcUri, dest, photo.fileName, mime)
-        db.photoDao().update(photo.copy(status = PhotoStatus.NEEDS_EDIT))
+        scanMutex.withLock {
+            val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
+            val dest = folders[StorageManager.FOLDER_TO_LIGHTROOM] ?: return@withLock
+            val srcUri = Uri.parse(photo.uri)
+            val mime = context.contentResolver.getType(srcUri) ?: "image/*"
+            StorageManager.copyInto(context, srcUri, dest, photo.fileName, mime)
+            db.photoDao().update(photo.copy(status = PhotoStatus.NEEDS_EDIT))
+        }
     }
 
     suspend fun scanEditedReturn(project: Project): Int = withContext(Dispatchers.IO) {
-        val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
-        val returnFolder = folders[StorageManager.FOLDER_EDITED_RETURN] ?: return@withContext 0
-        val pending = db.photoDao().getForProjectOnce(project.id).filter { it.status == PhotoStatus.NEEDS_EDIT }
-        if (pending.isEmpty()) return@withContext 0
+        scanMutex.withLock {
+            val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
+            val returnFolder = folders[StorageManager.FOLDER_EDITED_RETURN] ?: return@withLock 0
+            val pending = db.photoDao().getForProjectOnce(project.id).filter { it.status == PhotoStatus.NEEDS_EDIT }
+            if (pending.isEmpty()) return@withLock 0
 
-        var matched = 0
-        for (file in returnFolder.listFiles()) {
-            if (!file.isFile) continue
-            val name = file.name ?: continue
-            val base = StorageManager.baseName(name)
-            val hit = pending.firstOrNull { StorageManager.baseName(it.fileName) == base && it.status == PhotoStatus.NEEDS_EDIT }
-            if (hit != null) {
-                db.photoDao().update(
-                    hit.copy(
-                        uri = file.uri.toString(),
-                        fileName = name,
-                        status = PhotoStatus.FINAL
+            var matched = 0
+            for (file in returnFolder.listFiles()) {
+                if (!file.isFile) continue
+                val name = file.name ?: continue
+                val base = StorageManager.baseName(name)
+                val hit = pending.firstOrNull { StorageManager.baseName(it.fileName) == base && it.status == PhotoStatus.NEEDS_EDIT }
+                if (hit != null) {
+                    db.photoDao().update(
+                        hit.copy(
+                            uri = file.uri.toString(),
+                            fileName = name,
+                            status = PhotoStatus.FINAL
+                        )
                     )
-                )
-                matched++
+                    matched++
+                }
             }
+            matched
         }
-        matched
     }
 
     suspend fun exportFinals(project: Project): Int = withContext(Dispatchers.IO) {
-        val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
-        val exportFolder = folders[StorageManager.FOLDER_EXPORT] ?: return@withContext 0
-        val finals = db.photoDao().getForProjectOnce(project.id).filter { it.status == PhotoStatus.FINAL }
-        var count = 0
-        for (photo in finals) {
-            val srcUri = Uri.parse(photo.uri)
-            val mime = context.contentResolver.getType(srcUri) ?: "image/*"
-            val result = StorageManager.copyInto(context, srcUri, exportFolder, photo.fileName, mime)
-            if (result != null) count++
+        scanMutex.withLock {
+            val folders = StorageManager.ensureProjectFolders(context, project.rootFolderUri)
+            val exportFolder = folders[StorageManager.FOLDER_EXPORT] ?: return@withLock 0
+            val finals = db.photoDao().getForProjectOnce(project.id).filter { it.status == PhotoStatus.FINAL }
+            var count = 0
+            for (photo in finals) {
+                val srcUri = Uri.parse(photo.uri)
+                val mime = context.contentResolver.getType(srcUri) ?: "image/*"
+                val result = StorageManager.copyInto(context, srcUri, exportFolder, photo.fileName, mime)
+                if (result != null) count++
+            }
+            count
         }
-        count
     }
 
     suspend fun deletePhoto(photo: Photo) = withContext(Dispatchers.IO) {
