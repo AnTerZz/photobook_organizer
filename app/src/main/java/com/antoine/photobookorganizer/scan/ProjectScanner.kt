@@ -19,6 +19,7 @@ class ProjectScanner(private val context: Context) {
 
     private val db = AppDatabase.get(context)
     private val imageExtensions = setOf("jpg", "jpeg", "png", "heic", "heif", "dng")
+
     private val scanMutex = Mutex()
 
     suspend fun scanInbox(project: Project): Int = withContext(Dispatchers.IO) {
@@ -165,6 +166,13 @@ class ProjectScanner(private val context: Context) {
     suspend fun deletePhoto(photo: Photo) = withContext(Dispatchers.IO) {
         StorageManager.deleteFile(context, photo.uri)
         db.photoDao().delete(photo)
+        val groupId = photo.isDuplicateGroup
+        if (groupId != null) {
+            val remaining = db.photoDao().getForProjectOnce(photo.projectId).filter { it.isDuplicateGroup == groupId }
+            if (remaining.size <= 1) {
+                remaining.forEach { db.photoDao().update(it.copy(isDuplicateGroup = null)) }
+            }
+        }
     }
 
     suspend fun completionPercent(projectId: Long): Int {
