@@ -26,11 +26,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,13 +47,12 @@ import kotlin.math.roundToInt
 @Composable
 fun TriageScreen(
     candidates: List<Photo>,
-    onSelect: (Photo) -> Unit,
+    onMarkFinal: (Photo) -> Unit,
     onSendToLightroom: (Photo) -> Unit,
+    onReject: (Photo) -> Unit,
     onClose: () -> Unit
 ) {
-    var skippedIds by remember { mutableStateOf(setOf<Long>()) }
-    val remaining = remember(candidates, skippedIds) { candidates.filter { it.id !in skippedIds } }
-    val current = remaining.firstOrNull()
+    val current = candidates.firstOrNull()
 
     Scaffold(
         topBar = {
@@ -85,8 +81,8 @@ fun TriageScreen(
                 SwipeCard(
                     key = current.id,
                     photo = current,
-                    onSwipedRight = { onSelect(current) },
-                    onSwipedLeft = { skippedIds = skippedIds + current.id },
+                    onSwipedRight = { onMarkFinal(current) },
+                    onSwipedLeft = { onReject(current) },
                     onSwipedUp = { onSendToLightroom(current) }
                 )
             }
@@ -168,7 +164,7 @@ private fun SwipeCard(
                 onClick = { scope.launch { offsetX.animateTo(-2000f, tween(220)); onSwipedLeft() } },
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Icon(Icons.Filled.Close, contentDescription = "Skip")
+                Icon(Icons.Filled.Close, contentDescription = "Reject")
             }
             FilledIconButton(
                 onClick = { scope.launch { offsetY.animateTo(-2000f, tween(220)); onSwipedUp() } },
