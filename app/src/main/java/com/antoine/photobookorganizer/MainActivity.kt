@@ -7,8 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -24,15 +22,19 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by lazy { MainViewModel(application) }
 
+    // Held outside Compose so onNewIntent (called when the app is already running) can update it -
+    // this is what was missing: sharing worked only on a cold start, not when the app was already open.
+    private val pendingShareState = mutableStateOf<List<Uri>>(emptyList())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val sharedUris = extractSharedImageUris(intent)
+        pendingShareState.value = extractSharedImageUris(intent)
 
         setContent {
             PhotobookOrganizerTheme {
                 val navController = rememberNavController()
-                var pendingShare by remember { mutableStateOf(sharedUris) }
+                val pendingShare by pendingShareState
 
                 NavHost(navController = navController, startDestination = "projects") {
                     composable("projects") {
@@ -54,10 +56,19 @@ class MainActivity : ComponentActivity() {
                     ShareTargetScreen(
                         viewModel = viewModel,
                         sharedUris = pendingShare,
-                        onDone = { pendingShare = emptyList() }
+                        onDone = { pendingShareState.value = emptyList() }
                     )
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val uris = extractSharedImageUris(intent)
+        if (uris.isNotEmpty()) {
+            pendingShareState.value = uris
         }
     }
 
