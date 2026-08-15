@@ -38,6 +38,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
 
+    private val _pendingShare = MutableStateFlow<List<Uri>>(emptyList())
+    val pendingShare: StateFlow<List<Uri>> = _pendingShare
+
+    fun setPendingShare(uris: List<Uri>) {
+        if (uris.isNotEmpty()) _pendingShare.value = uris
+    }
+
+    fun clearPendingShare() {
+        _pendingShare.value = emptyList()
+    }
+
     init {
         viewModelScope.launch {
             projects.collect { list -> list.forEach { refreshCompletion(it.id) } }
